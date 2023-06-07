@@ -1,0 +1,1 @@
+DB_URL = 'mssql+pymssql://sa:CgSqlServerRoot2012@172.17.18.110/yypt?charset=utf8'
