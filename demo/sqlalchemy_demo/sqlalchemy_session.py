@@ -3,14 +3,17 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm.session import Session
 
 
+DB_CONNECT='mssql+pyodbc://sa:CgSqlServerRoot2012@172.17.18.110/cgyypt?driver=ODBC+Driver+17+for+SQL+Server'
+
 class CreateDB:
 
-    def __init__(self, DB_URL):
-        self.__db_url = DB_URL
+    def __init__(self, DB_URL=None):
+        self.__db_url = DB_URL if DB_URL else DB_CONNECT
         self.__session = None
 
     def __enter__(self):
-        engine = create_engine(self.__db_url)
+        print('----------------开启链接----------------')
+        engine = create_engine(self.__db_url, echo=True)
         engine.execution_options(autocommit=True)
         session = sessionmaker(bind=engine)
         self.__session = session()
@@ -18,6 +21,7 @@ class CreateDB:
         return self.__session
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        print('----------------关闭链接----------------')
         self.__session.close()
 
 
