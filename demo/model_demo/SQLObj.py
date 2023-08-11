@@ -26,9 +26,104 @@ from typing import Generic, TypeVar, Dict, Union, List, Tuple, Type
 
 from demo.model_demo.base_model import BaseModel, FieldSortEnum, Fields
 from demo.model_demo.models import TestModel
-from demo.model_demo.sql_utils import BuildSQLException
 
 T = TypeVar('T')
+
+
+class SQLAttributeSqlGetMixin:
+
+    def __init__(self, sql: str):
+        self.__sql = sql
+
+    @property
+    def sql(self):
+        return self.__sql
+
+
+class SQLAttributeSqlGetSetMixin:
+
+    def __init__(self, sql: str):
+        self.__sql = sql
+
+    @property
+    def sql(self):
+        return self.__sql
+
+    @sql.setter
+    def sql(self, sql: str):
+        self.__sql = sql
+
+
+class SQLAttributeFieldsGetMixin:
+
+    def __init__(self, fields: List):
+        self.__fields = fields
+
+    @property
+    def fields(self):
+        return self.__fields
+
+
+class SQLAttributeFieldsGetSetMixin:
+
+    def __init__(self, fields: List):
+        self.__fields = fields
+
+    @property
+    def fields(self):
+        return self.__fields
+
+    @fields.setter
+    def fields(self, fields: List):
+        self.__fields = fields
+
+
+class SQLAttributeTableNameGetMixin:
+
+    def __init__(self, table_name: str):
+        self.__table_name = table_name
+
+    @property
+    def table_name(self):
+        return self.__table_name
+
+
+class SQLAttributeTableNameGetSetMixin:
+
+    def __init__(self, table_name: str):
+        self.__table_name = table_name
+
+    @property
+    def table_name(self):
+        return self.__table_name
+
+    @table_name.setter
+    def table_name(self, table_name: str):
+        self.__table_name = table_name
+
+
+class SQLAttributeSqlParamsGetMixin:
+
+    def __init__(self, sql_params: List):
+        self.__sql_params = sql_params
+
+    @property
+    def sql_params(self):
+        return self.__sql_params
+
+
+class SQLAttributeSqlParamsGetSetMixin:
+
+    def __init__(self, sql_params: List):
+        self.__sql_params = sql_params
+
+    @property
+    def sql_params(self):
+        return self.__sql_params
+
+    @sql_params.setter
+    def sql_params(self, sql_params: List):
+        self.__sql_params = sql_params
 
 
 class AbstractSQL(Generic[T], metaclass=abc.ABCMeta):
@@ -55,8 +150,21 @@ class AbstractSQL(Generic[T], metaclass=abc.ABCMeta):
     def replace_placeholder(self, use_placeholder: str):
         return self.sql.replace('?', use_placeholder)
 
+    # noinspection PyMethodMayBeStatic
+    def iter_model(self, model: BaseModel):
+        params = {}
+        for k, v in model.__dict__.items():
+            if k.startswith('__') or k.endswith('__'):
+                continue
+            params[k] = v
+        return params
 
-class AbstractWhere(AbstractSQL):
+
+class AbstractWhere(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeSqlParamsGetMixin):
+
+    def __init__(self, sql: str, sql_params: List):
+        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
+        SQLAttributeSqlParamsGetMixin.__init__(self, sql_params=sql_params)
 
     @abc.abstractmethod
     def where(self, *conditions):
@@ -112,28 +220,52 @@ class AbstractWhere(AbstractSQL):
         return condition_str_list, sql_params
 
 
-class AbstractInsert(AbstractSQL):
+class AbstractInsert(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeFieldsGetSetMixin,
+                     SQLAttributeTableNameGetSetMixin, SQLAttributeSqlParamsGetMixin):
+
+    def __init__(self, sql: str, table_name: str, sql_params: List, fields: List):
+        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
+        SQLAttributeTableNameGetSetMixin.__init__(self, table_name=table_name)
+        SQLAttributeSqlParamsGetMixin.__init__(self, sql_params=sql_params)
+        SQLAttributeFieldsGetSetMixin.__init__(self, fields=fields)
 
     @abc.abstractmethod
     def insert(self, model: BaseModel = None):
         pass
 
 
-class AbstractDelete(AbstractSQL):
+class AbstractDelete(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeTableNameGetSetMixin):
+
+    def __init__(self, sql: str, table_name: str):
+        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
+        SQLAttributeTableNameGetSetMixin.__init__(self, table_name=table_name)
 
     @abc.abstractmethod
-    def delete(self, params: Dict, table_name: str = ''):
+    def delete(self, model: BaseModel):
         pass
 
 
-class AbstractUpdate(AbstractSQL):
+class AbstractUpdate(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeTableNameGetSetMixin,
+                     SQLAttributeSqlParamsGetMixin, SQLAttributeFieldsGetSetMixin):
+
+    def __init__(self, sql: str, table_name: str, sql_params: List, fields: List):
+        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
+        SQLAttributeTableNameGetSetMixin.__init__(self, table_name=table_name)
+        SQLAttributeSqlParamsGetMixin.__init__(self, sql_params=sql_params)
+        SQLAttributeFieldsGetSetMixin.__init__(self, fields=fields)
 
     @abc.abstractmethod
-    def update(self, params: Dict, table_name: str = ''):
+    def update(self, model: BaseModel = None):
         pass
 
 
-class AbstractSelect(AbstractSQL):
+class AbstractSelect(AbstractSQL, SQLAttributeSqlGetMixin,
+                     SQLAttributeTableNameGetSetMixin, SQLAttributeFieldsGetSetMixin):
+
+    def __init__(self, sql: str, fields: List, table_name):
+        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
+        SQLAttributeTableNameGetSetMixin.__init__(self, table_name=table_name)
+        SQLAttributeFieldsGetSetMixin.__init__(self, fields=fields)
 
     @abc.abstractmethod
     def select(self, model: Type[BaseModel] = None, fields: List[Fields] = None):
@@ -181,14 +313,7 @@ class WhereImpl(AbstractWhere):
     def __init__(self):
         self.__sql = ''
         self.__sql_params = []
-
-    @property
-    def sql(self):
-        return self.__sql
-
-    @property
-    def sql_params(self):
-        return self.__sql_params
+        super().__init__(sql=self.__sql, sql_params=self.__sql_params)
 
     def where(self, *conditions):
         condition_dict = self.condition_processor(*conditions)
@@ -204,6 +329,8 @@ class WhereImpl(AbstractWhere):
         if conditions:
             self.__sql = self.__sql.format(where_condition=result)
 
+        super().__init__(sql=self.__sql, sql_params=self.__sql_params)
+
         return self
 
     def build(self) -> str:
@@ -212,55 +339,34 @@ class WhereImpl(AbstractWhere):
     def re_set(self):
         self.__sql = ''
         self.__sql_params = []
+        super().__init__(sql=self.__sql, sql_params=self.__sql_params)
         return self
 
 
 class SelectImpl(AbstractSelect):
 
     # noinspection SqlNoDataSourceInspection
-    def __init__(self, fields: List = None, model: Type[BaseModel] = None):
-        self.__fields = fields
+    def __init__(self, model: Type[BaseModel], fields: List = None):
+        self.__model = model
+        self.__fields = [i.db_column_name for i in fields] if fields else []
         self.__table_name = model.__table_name__ if model else None
         self.__sql = 'SELECT {fields} FROM {table_name}'
-        self.__group_by = ''
-        self.__order_by = ''
-
-    @property
-    def fields(self):
-        return self.__fields
-
-    @fields.setter
-    def fields(self, fields: List):
-        self.__fields = fields
-
-    @property
-    def table_name(self):
-        return self.__table_name
-
-    @table_name.setter
-    def table_name(self, table_name: str):
-        self.__table_name = table_name
-
-    @property
-    def sql(self):
-        return self.__sql
-
-    def select(self, model: Type[BaseModel] = None, fields: List[Fields] = None):
-        select_params = {}
-
-        if model:
-            self.table_name = model.__table_name__
-            select_params['table_name'] = self.table_name
-        else:
-            select_params['table_name'] = self.table_name
 
         if fields:
-            self.fields = list(map(lambda f: self.table_name + '.' + f.db_column_name, fields))
-            select_params['fields'] = ', '.join(self.fields)
+            self.__sql = self.__sql.format(fields=', '.join(self.__fields), table_name=self.__table_name)
         else:
-            select_params['fields'] = '*'
+            self.__sql = self.__sql.format(fields='*', table_name=self.__table_name)
 
-        self.__sql = self.__sql.format(**select_params)
+        self.__group_by = ''
+        self.__order_by = ''
+        super().__init__(sql=self.__sql, table_name=self.__table_name, fields=self.__fields)
+
+    def select(self, model: Type[BaseModel] = None, fields: List[Fields] = None):
+        if model and fields:
+            self.__init__(model=model, fields=fields)
+
+        if not model and fields:
+            self.__init__(model=self.__model, fields=fields)
 
         return self
 
@@ -293,67 +399,35 @@ class SelectImpl(AbstractSelect):
         return self.__sql
 
     # noinspection SqlNoDataSourceInspection
-    def re_set(self, fields: List = (), table_name: str = ''):
-        self.__fields = fields
-        self.__table_name = table_name
+    def re_set(self):
+        self.__fields = []
+        self.__table_name = ''
         self.__sql = 'SELECT {fields} FROM {table_name}'
         self.__group_by = ''
         self.__order_by = ''
+        super().__init__(sql=self.__sql, table_name=self.__table_name, fields=self.__fields)
+        return self
 
 
 class InsertImpl(AbstractInsert):
 
     # noinspection SqlNoDataSourceInspection
-    def __init__(self, model: BaseModel = None):
+    def __init__(self, model: BaseModel):
+        self.__model = model
         self.__sql = 'INSERT INTO {table_name} ({fields}) VALUE ({values})'
         self.__table_name = model.__table_name__ if model else ''
-        if model:
-            params = self.__iter_model(model)
-            self.__fields = list(map(str, params.keys()))
-            self.__sql_params = list(map(str, params.values()))
-
-    @property
-    def sql(self):
-        return self.__sql
-
-    @property
-    def table_name(self):
-        return self.__table_name
-
-    @table_name.setter
-    def table_name(self, table_name: str):
-        self.__table_name = table_name
-
-    @property
-    def sql_params(self):
-        return self.__sql_params
+        params = self.iter_model(model)
+        self.__fields = list(map(str, params.keys()))
+        self.__sql_params = list(map(str, params.values()))
+        values = ['?'] * len(self.__sql_params)
+        self.__sql = self.__sql.format(table_name=self.__table_name, fields=', '.join(self.__fields),
+                                       values=', '.join(values))
+        super().__init__(sql=self.__sql, table_name=self.__table_name,
+                         sql_params=self.__sql_params, fields=self.__fields)
 
     def insert(self, model: BaseModel = None):
-        insert_params = {}
         if model:
-            self.table_name = model.__table_name__
-            insert_params['table_name'] = self.table_name
-            params = self.__iter_model(model=model)
-        elif self.table_name:
-            insert_params['table_name'] = self.table_name
-            params = self.__sql_params
-        else:
-            raise BuildSQLException('为找到insert数据需要的表名称')
-
-        if params:
-            fields = list(map(str, params.keys()))
-            insert_params['fields'] = ', '.join(fields)
-            self.__sql_params = list(map(str, params.values()))
-            values = ['?'] * len(self.__sql_params)
-            insert_params['values'] = ', '.join(values)
-        elif self.__sql_params:
-            insert_params['fields'] = ', '.join(self.__fields)
-            values = ['?'] * len(self.__sql_params)
-            insert_params['values'] = ', '.join(values)
-        else:
-            raise BuildSQLException('为找到insert数据需要的values')
-
-        self.__sql = self.__sql.format(**insert_params)
+            self.__init__(model=model)
 
         return self
 
@@ -364,23 +438,75 @@ class InsertImpl(AbstractInsert):
     def re_set(self):
         self.__sql = 'INSERT INTO {table_name} ({fields}) VALUE ({values})'
         self.__table_name = ''
-        self.__fields = None
-        self.__sql_params = None
+        self.__fields = []
+        self.__sql_params = []
+        super().__init__(sql=self.__sql, table_name=self.__table_name,
+                         sql_params=self.__sql_params, fields=self.__fields)
+        return self
 
-    # noinspection PyMethodMayBeStatic
-    def __iter_model(self, model: BaseModel):
-        params = {}
-        for k, v in model.__dict__.items():
-            if k.startswith('__') or k.endswith('__'):
-                continue
-            params[k] = v
-        return params
+
+class DeleteImpl(AbstractDelete):
+
+    def __init__(self, model):
+        self.__model = model
+        self.__sql = 'DELETE FROM {table_name}'
+        self.__sql = self.__sql.format(table_name=model.__table_name__)
+        self.__table_name = model.__table_name__
+        super().__init__(sql=self.__sql, table_name=self.__table_name)
+
+    def delete(self, model: Type[BaseModel] = None):
+        if model:
+            self.__init__(model=model)
+
+        return self
+
+    def build(self) -> str:
+        return self.__sql
+
+    def re_set(self):
+        self.__sql = 'DELETE FROM {table_name}'
+        self.__table_name = ''
+        super().__init__(sql=self.__sql, table_name=self.__table_name)
+        return self
+
+
+class UpdateImpl(AbstractUpdate):
+
+    def __init__(self, model: BaseModel):
+        self.__model = model
+        self.__sql = 'UPDATE {table_name} SET '
+        self.__table_name = model.__table_name__
+        params = self.iter_model(model)
+        self.__fields = list(map(str, params.keys()))
+        self.__sql_params = list(map(str, params.values()))
+        self.__sql = self.__sql.format(table_name=self.__table_name)
+        sql = ', '.join([f'{k}=?' for k, v in zip(self.__fields, self.__sql_params)])
+        self.__sql += sql
+        super().__init__(sql=self.__sql, table_name=self.__table_name,
+                         sql_params=self.__sql_params, fields=self.__fields)
+
+    def update(self, model: BaseModel = None):
+        if model:
+            self.__init__(model=model)
+
+        return self
+
+    def build(self) -> str:
+        return self.__sql
+
+    def re_set(self):
+        self.__sql = 'UPDATE {table_name} SET '
+        self.__table_name = ''
+        self.__fields = []
+        self.__sql_params = []
+        super().__init__(sql=self.__sql, table_name=self.__table_name,
+                         sql_params=self.__sql_params, fields=self.__fields)
 
 
 if __name__ == '__main__':
     def test_select():
-        s = SelectImpl()
-        sql = s.select(model=TestModel, fields=[TestModel.id]).build()
+        s = SelectImpl(model=TestModel)
+        sql = s.select(fields=[TestModel.id]).build()
         print('select ---', sql)
         order_by = s.order_by(TestModel.name.desc, TestModel.id.asc)
         print('order_by ---', order_by)
@@ -399,13 +525,26 @@ if __name__ == '__main__':
 
     def test_insert():
         t = TestModel(id=1, name='张三')
-        i = InsertImpl()
-        sql = i.insert(t).build()
+        i = InsertImpl(model=t)
+        sql = i.insert().build()
         print('sql ----', sql)
         print('params ----', i.sql_params)
         print(i.replace_placeholder('%s'))
 
 
-    test_select()
-    test_where()
-    test_insert()
+    def test_delete():
+        d = DeleteImpl(TestModel)
+        sql = d.delete().build()
+        print('sql ----', sql)
+        print(d.table_name)
+        print(d.sql)
+
+
+    def test_update():
+        t = TestModel(id=1, name='张三')
+        u = UpdateImpl(t)
+        sql = u.update().build()
+        print(sql, 'sql ---', sql)
+        print(u.table_name)
+        print(u.sql)
+        print(u.sql_params)
