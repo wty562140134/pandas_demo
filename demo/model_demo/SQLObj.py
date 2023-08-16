@@ -176,7 +176,8 @@ class AbstractSQL(Generic[T], metaclass=abc.ABCMeta):
         """
         result = {}
         for c in conditions:
-            result.update(c)
+            if isinstance(c, Dict):
+                result.update(c)
         return result
 
     # noinspection PyMethodMayBeStatic,PyUnresolvedReferences
@@ -197,12 +198,23 @@ class AbstractSQL(Generic[T], metaclass=abc.ABCMeta):
                 append_value = self.table_name + '.' + v.db_column_name if isinstance(v, Fields) else v
             else:
                 append_value = v.db_column_name if isinstance(v, Fields) else v
-            sql_params.append(append_value)
+
+            if isinstance(v, List):
+                sql_params += v
+            else:
+                sql_params.append(append_value)
+
             if (isinstance(v, str) and '%' not in v) or isinstance(v, Fields):
                 if getattr(self, 'table_name', None):
                     condition_str_list.append(f'{self.table_name}.{k}=?')
                 else:
                     condition_str_list.append(f'{k}=?')
+            elif isinstance(v, List):
+                in_sql = '({})'.format(', '.join(['?'] * len(v)))
+                if getattr(self, 'table_name', None):
+                    condition_str_list.append(f'{self.table_name}.{k} IN {in_sql}')
+                else:
+                    condition_str_list.append(f'{k} IN {in_sql}')
             else:
                 if getattr(self, 'table_name', None):
                     condition_str_list.append(f'{self.table_name}.{k} LIKE ?')
@@ -583,10 +595,22 @@ if __name__ == '__main__':
 
     def test_where():
         w = WhereImpl(TestModel)
+        print('---------like----------')
         w_sql = w.where(TestModel.name.like('%三%')).build()
-        print(w_sql, 'like-------', w.sql_params)
+        print('sql:', w_sql)
+        print('sql_params:', w.sql_params)
+        print('---------like over----------')
+        print('---------==--------------')
         w_sql1 = w.where(TestModel.name == '张三').build()
-        print(w_sql1, '-------', w.sql_params)
+        print('sql:', w_sql1)
+        print('sql_params:', w.sql_params)
+        print('---------== over--------------')
+        print('---------in----------')
+        w_sql_in = w.where(TestModel.id.in_([1, 2, 3]), TestModel.name=='张三').build()
+        print('sql:', w_sql_in)
+        print('sql_params:', w.sql_params)
+        print('---------in over----------')
+
 
 
     def test_insert():

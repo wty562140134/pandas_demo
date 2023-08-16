@@ -22,7 +22,7 @@
 ===============
 """
 import enum
-from typing import Union, Dict, Tuple
+from typing import Union, Dict, Tuple, List
 
 from demo.model_demo.sql_utils import BuildSQLUtil
 
@@ -31,8 +31,8 @@ class FieldSortEnum(enum.Enum):
     """
     排序枚举
     """
-    asc = 'asc'
-    desc = 'desc'
+    asc = 'ASC'
+    desc = 'DESC'
 
 
 class Fields:
@@ -87,6 +87,12 @@ class Fields:
     def like(self, like_condition):
         conditions_dict = {}
         conditions_dict[self.__db_column_name] = like_condition
+        return conditions_dict
+
+    def in_(self, in_condition: Union[List]):
+        conditions_dict = {}
+        if isinstance(in_condition, List):
+            conditions_dict[self.__db_column_name] = in_condition
         return conditions_dict
 
     def __eq__(self, other):
