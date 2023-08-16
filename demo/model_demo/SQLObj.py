@@ -22,6 +22,7 @@
 ===============
 """
 import abc
+import enum
 from typing import Generic, TypeVar, Dict, Union, List, Tuple, Type
 
 from demo.model_demo.base_model import BaseModel, FieldSortEnum, Fields
@@ -159,28 +160,8 @@ class AbstractSQL(Generic[T], metaclass=abc.ABCMeta):
             params[k] = v
         return params
 
+        # noinspection PyMethodMayBeStatic
 
-class AbstractWhere(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeSqlParamsGetMixin):
-
-    def __init__(self, sql: str, sql_params: List):
-        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
-        SQLAttributeSqlParamsGetMixin.__init__(self, sql_params=sql_params)
-
-    @abc.abstractmethod
-    def where(self, *conditions):
-        """
-        构建where条件sql函数
-        例如:
-            WhereImpl().where(TestModel.id==1, TestModel.name=='张三')
-        Args:
-            *conditions (): 条件元组({'id': 1}, {'name': 2})
-
-        Returns:
-            WHERE id=1 AND name='张三'
-        """
-        pass
-
-    # noinspection PyMethodMayBeStatic
     def condition_processor(self, *conditions) -> Dict:
         """
         把条件列表解包为字典例如
@@ -198,7 +179,7 @@ class AbstractWhere(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeSqlParamsG
             result.update(c)
         return result
 
-    # noinspection PyMethodMayBeStatic
+    # noinspection PyMethodMayBeStatic,PyUnresolvedReferences
     def condition_dict_processor(self, condition_dict: Dict) -> Tuple[List[str], List]:
         """
         将条件字典转换为sql中的key=value的形式
@@ -212,12 +193,45 @@ class AbstractWhere(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeSqlParamsG
         condition_str_list = []
         sql_params = []
         for k, v in condition_dict.items():
-            sql_params.append(v)
-            if '%' not in v:
-                condition_str_list.append(f'{k}=?')
+            if getattr(self, 'table_name', None):
+                append_value = self.table_name + '.' + v.db_column_name if isinstance(v, Fields) else v
             else:
-                condition_str_list.append(f'{k} LIKE ?')
+                append_value = v.db_column_name if isinstance(v, Fields) else v
+            sql_params.append(append_value)
+            if (isinstance(v, str) and '%' not in v) or isinstance(v, Fields):
+                if getattr(self, 'table_name', None):
+                    condition_str_list.append(f'{self.table_name}.{k}=?')
+                else:
+                    condition_str_list.append(f'{k}=?')
+            else:
+                if getattr(self, 'table_name', None):
+                    condition_str_list.append(f'{self.table_name}.{k} LIKE ?')
+                else:
+                    condition_str_list.append(f'{k} LIKE ?')
         return condition_str_list, sql_params
+
+
+class AbstractWhere(AbstractSQL, SQLAttributeSqlGetMixin,
+                    SQLAttributeSqlParamsGetMixin, SQLAttributeTableNameGetSetMixin):
+
+    def __init__(self, sql: str, sql_params: List, table_name: str):
+        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
+        SQLAttributeSqlParamsGetMixin.__init__(self, sql_params=sql_params)
+        SQLAttributeTableNameGetSetMixin.__init__(self, table_name=table_name)
+
+    @abc.abstractmethod
+    def where(self, *conditions):
+        """
+        构建where条件sql函数
+        例如:
+            WhereImpl().where(TestModel.id==1, TestModel.name=='张三')
+        Args:
+            *conditions (): 条件元组({'id': 1}, {'name': 2})
+
+        Returns:
+            WHERE id=1 AND name='张三'
+        """
+        pass
 
 
 class AbstractInsert(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeFieldsGetSetMixin,
@@ -301,19 +315,34 @@ class AbstractSelect(AbstractSQL, SQLAttributeSqlGetMixin,
         pass
 
 
-class AbstractJoin(AbstractSQL):
+class AbstractJoin(AbstractSQL, SQLAttributeSqlGetMixin, SQLAttributeTableNameGetSetMixin,
+                   SQLAttributeSqlParamsGetMixin):
+    class JoinTypeEnum(enum.Enum):
+        join = 'JOIN'
+        left_join = 'LEFT JOIN'
+        right_join = 'RIGHT JOIN'
+
+    def __init__(self, sql: str, table_name: str, sql_params: List):
+        SQLAttributeSqlGetMixin.__init__(self, sql=sql)
+        SQLAttributeTableNameGetSetMixin.__init__(self, table_name=table_name)
+        SQLAttributeSqlParamsGetMixin.__init__(self, sql_params=sql_params)
 
     @abc.abstractmethod
-    def join(self, table: Union[str, BaseModel], on):
+    def join(self, model: Type[BaseModel] = None, join_type: JoinTypeEnum = None):
+        pass
+
+    @abc.abstractmethod
+    def on(self, *on_conditions):
         pass
 
 
 class WhereImpl(AbstractWhere):
 
-    def __init__(self):
+    def __init__(self, model: Type[BaseModel] = None):
         self.__sql = ''
         self.__sql_params = []
-        super().__init__(sql=self.__sql, sql_params=self.__sql_params)
+        self.__table_name = model.__table_name__ if model else ''
+        super().__init__(sql=self.__sql, sql_params=self.__sql_params, table_name=self.__table_name)
 
     def where(self, *conditions):
         condition_dict = self.condition_processor(*conditions)
@@ -329,7 +358,7 @@ class WhereImpl(AbstractWhere):
         if conditions:
             self.__sql = self.__sql.format(where_condition=result)
 
-        super().__init__(sql=self.__sql, sql_params=self.__sql_params)
+        super().__init__(sql=self.__sql, sql_params=self.__sql_params, table_name=self.__table_name)
 
         return self
 
@@ -339,7 +368,8 @@ class WhereImpl(AbstractWhere):
     def re_set(self):
         self.__sql = ''
         self.__sql_params = []
-        super().__init__(sql=self.__sql, sql_params=self.__sql_params)
+        self.__table_name = ''
+        super().__init__(sql=self.__sql, sql_params=self.__sql_params, table_name=self.__table_name)
         return self
 
 
@@ -488,7 +518,6 @@ class UpdateImpl(AbstractUpdate):
     def update(self, model: BaseModel = None):
         if model:
             self.__init__(model=model)
-
         return self
 
     def build(self) -> str:
@@ -501,6 +530,43 @@ class UpdateImpl(AbstractUpdate):
         self.__sql_params = []
         super().__init__(sql=self.__sql, table_name=self.__table_name,
                          sql_params=self.__sql_params, fields=self.__fields)
+
+
+class JoinImpl(AbstractJoin):
+    JoinTypeEnum = AbstractJoin.JoinTypeEnum
+
+    def __init__(self, model: Type[BaseModel], join_type: JoinTypeEnum):
+        self.__model = model
+        self.__sql = '{join_sql} {table_name} ON {on_condition}'
+        self.__table_name = model.__table_name__
+        self.__sql_params = []
+        self.__sql = self.__sql.format(join_sql=join_type.value,
+                                       table_name=self.__table_name,
+                                       on_condition='{on_condition}')
+        super().__init__(sql=self.__sql, table_name=self.__table_name, sql_params=self.__sql_params)
+
+    def join(self, model: Type[BaseModel] = None, join_type: JoinTypeEnum = None):
+        if model:
+            self.__init__(model=model, join_type=join_type)
+        return self
+
+    def on(self, *on_conditions):
+        condition_dict = self.condition_processor(*on_conditions)
+        condition_str_list, sql_params = self.condition_dict_processor(condition_dict=condition_dict)
+        self.__sql_params = sql_params
+        self.__sql = self.__sql.format(on_condition=', '.join(condition_str_list))
+        super().__init__(sql=self.__sql, table_name=self.__table_name, sql_params=self.__sql_params)
+        return self
+
+    def build(self) -> str:
+        return self.__sql
+
+    def re_set(self):
+        self.__model = None
+        self.__sql = '{join_sql} {table_name} ON {on_condition}'
+        self.__table_name = ''
+        self.__sql_params = []
+        super().__init__(sql=self.__sql, table_name=self.__table_name, sql_params=self.__sql_params)
 
 
 if __name__ == '__main__':
@@ -516,7 +582,7 @@ if __name__ == '__main__':
 
 
     def test_where():
-        w = WhereImpl()
+        w = WhereImpl(TestModel)
         w_sql = w.where(TestModel.name.like('%三%')).build()
         print(w_sql, 'like-------', w.sql_params)
         w_sql1 = w.where(TestModel.name == '张三').build()
@@ -544,7 +610,19 @@ if __name__ == '__main__':
         t = TestModel(id=1, name='张三')
         u = UpdateImpl(t)
         sql = u.update().build()
-        print(sql, 'sql ---', sql)
+        print('sql ---', sql)
         print(u.table_name)
         print(u.sql)
         print(u.sql_params)
+
+
+    def test_join():
+        j = JoinImpl(TestModel, JoinImpl.JoinTypeEnum.join)
+        sql = j.on(TestModel.id == TestModel.id, TestModel.name == '张3').build()
+        print('sql ---', sql)
+        print(j.table_name)
+        print(j.sql)
+        print(j.sql_params)
+
+
+    test_where()
