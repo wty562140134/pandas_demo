@@ -23,7 +23,7 @@
 """
 import abc
 import enum
-from typing import Generic, TypeVar, Dict, Union, List, Tuple, Type
+from typing import Generic, TypeVar, Dict, List, Tuple, Type
 
 from demo.model_demo.base_model import BaseModel, FieldSortEnum, Fields
 from demo.model_demo.models import TestModel
@@ -125,6 +125,15 @@ class SQLAttributeSqlParamsGetSetMixin:
     @sql_params.setter
     def sql_params(self, sql_params: List):
         self.__sql_params = sql_params
+
+
+class Condition:
+
+    def __init__(self, conditions: Tuple):
+        self.__conditions = conditions
+
+    def get_condition(self):
+        pass
 
 
 class AbstractSQL(Generic[T], metaclass=abc.ABCMeta):
@@ -360,6 +369,7 @@ class WhereImpl(AbstractWhere):
         condition_dict = self.condition_processor(*conditions)
 
         where_condition, sql_params = self.condition_dict_processor(condition_dict)
+        c = Condition(conditions=conditions)
 
         self.__sql_params = sql_params
 
@@ -373,6 +383,9 @@ class WhereImpl(AbstractWhere):
         super().__init__(sql=self.__sql, sql_params=self.__sql_params, table_name=self.__table_name)
 
         return self
+
+    def __eq__(self, other):
+        print(other)
 
     def build(self) -> str:
         return self.__sql
@@ -596,7 +609,7 @@ if __name__ == '__main__':
     def test_where():
         w = WhereImpl(TestModel)
         print('---------like----------')
-        w_sql = w.where(TestModel.name.like('%三%')).build()
+        w_sql = w.where(TestModel.name.like('%三%') | TestModel.name.in_(['a'])).build()
         print('sql:', w_sql)
         print('sql_params:', w.sql_params)
         print('---------like over----------')
@@ -606,11 +619,10 @@ if __name__ == '__main__':
         print('sql_params:', w.sql_params)
         print('---------== over--------------')
         print('---------in----------')
-        w_sql_in = w.where(TestModel.id.in_([1, 2, 3]), TestModel.name=='张三').build()
+        w_sql_in = w.where(TestModel.id.in_([1, 2, 3]), TestModel.name == '张三').build()
         print('sql:', w_sql_in)
         print('sql_params:', w.sql_params)
         print('---------in over----------')
-
 
 
     def test_insert():

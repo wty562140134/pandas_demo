@@ -35,6 +35,105 @@ class FieldSortEnum(enum.Enum):
     desc = 'DESC'
 
 
+class ConditionDict(dict):
+
+    def __eq__(self, other):
+        """
+        重写等于比较函数用于在比较两个ConditionDict对象的值即做==操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+        print(other)
+
+    def __ne__(self, other):
+        """
+        重写不等于比较函数用于在比较两个ConditionDict对象的值即做!=操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+
+        print(other)
+
+    def __and__(self, other):
+        """
+        重写与函数用于在比较两个ConditionDict对象的值即做&操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+        print(other)
+
+    def __or__(self, other):
+        """
+        重写或比较函数用于在比较两个ConditionDict对象的值即做|操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+        print(other)
+
+    def __gt__(self, other):
+        """
+        重写大于比较函数用于在比较两个ConditionDict对象的值即做>操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+        print(other)
+
+    def __ge__(self, other):
+        """
+        重写大于等于比较函数用于在比较两个ConditionDict对象的值即做>=操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+
+        print(other)
+
+    def __lt__(self, other):
+        """
+        重写小于比较函数用于在比较两个ConditionDict对象的值即做<操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+
+    def __le__(self, other):
+        """
+        重写小于等于比较函数用于在比较两个ConditionDict对象的值即做<=操作
+
+        Args:
+            other ():
+
+        Returns:
+
+        """
+
+
 class Fields:
 
     def __init__(self, db_column_name: str, db_column_len: Union[str, int] = ''):
@@ -85,18 +184,18 @@ class Fields:
         return self.db_column_name + ' ' + self.__sort.value
 
     def like(self, like_condition):
-        conditions_dict = {}
+        conditions_dict = ConditionDict()
         conditions_dict[self.__db_column_name] = like_condition
         return conditions_dict
 
     def in_(self, in_condition: Union[List]):
-        conditions_dict = {}
+        conditions_dict = ConditionDict()
         if isinstance(in_condition, List):
             conditions_dict[self.__db_column_name] = in_condition
         return conditions_dict
 
     def __eq__(self, other):
-        conditions_dict = {}
+        conditions_dict = ConditionDict()
         conditions_dict[self.db_column_name] = other
         return conditions_dict
 
