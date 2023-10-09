@@ -147,7 +147,7 @@ class BuildSQLUtil:
             result.update(c)
         return result
 
-    def __condition_dict_processor(self, condition_dict:Dict) -> List[str]:
+    def __condition_dict_processor(self, condition_dict: Dict) -> List[str]:
         condition_str_list = []
         for k, v in condition_dict.items():
             condition_str_list.append(f'{k}={v}')
@@ -166,11 +166,12 @@ class BuildSQLUtil:
     def __next__(self):
         return self.build()
 
+
 if __name__ == '__main__':
     u = BuildSQLUtil(table_name='test')
     sql = u.select().where().build()
     print(sql)
 
     u1 = BuildSQLUtil(table_name='test')
-    sql = u.insert(params={'id':1, 'name': '张三'}).build()
+    sql = u.insert(params={'id': 1, 'name': '张三'}).build()
     print(sql)

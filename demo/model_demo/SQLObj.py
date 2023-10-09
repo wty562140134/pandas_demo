@@ -609,7 +609,8 @@ if __name__ == '__main__':
     def test_where():
         w = WhereImpl(TestModel)
         print('---------like----------')
-        w_sql = w.where(TestModel.name.like('%三%') | TestModel.name.in_(['a'])).build()
+        w_sql = w.where(
+            (TestModel.name.like('%三%') | TestModel.name.in_(['a', 'b'])) & TestModel.name == '张三').build()
         print('sql:', w_sql)
         print('sql_params:', w.sql_params)
         print('---------like over----------')

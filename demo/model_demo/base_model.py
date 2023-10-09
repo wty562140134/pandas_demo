@@ -37,7 +37,12 @@ class FieldSortEnum(enum.Enum):
 
 class ConditionDict(dict):
 
-    def __eq__(self, other):
+    def __init__(self, sql: str = '', sql_params: List = '', seq=None, **kwargs):
+        kwargs['sql'] = sql
+        kwargs['sql_params'] = sql_params
+        super(ConditionDict, self).__init__(seq=seq, **kwargs)
+
+    def __eq__(self, other: Dict):
         """
         重写等于比较函数用于在比较两个ConditionDict对象的值即做==操作
 
@@ -85,6 +90,28 @@ class ConditionDict(dict):
 
         """
         print(other)
+        other.update(self)
+        sql = ''
+        sql_params = []
+        for k, v in other.items():
+            if 'in_' in k:
+                params_len = len(v)
+                placeholder = ', '.join(params_len * ['?'])
+                sql = k.split('in_')[-1] + ' in (' + placeholder + ')'
+                if isinstance(v, List):
+                    sql_params += v
+                else:
+                    sql_params.append(v)
+
+            if 'like' in k:
+                if sql:
+                    sql += ' and ' + k.split('like_')[-1] + ' like ?'
+                else:
+                    sql = k.split('like')[-1] + ' like ?'
+                sql_params.append(v)
+
+        return ConditionDict(sql=sql, sql_params=sql_params)
+        # return sql, sql_params
 
     def __gt__(self, other):
         """
@@ -185,13 +212,13 @@ class Fields:
 
     def like(self, like_condition):
         conditions_dict = ConditionDict()
-        conditions_dict[self.__db_column_name] = like_condition
+        conditions_dict['like_' + self.__db_column_name] = like_condition
         return conditions_dict
 
     def in_(self, in_condition: Union[List]):
         conditions_dict = ConditionDict()
         if isinstance(in_condition, List):
-            conditions_dict[self.__db_column_name] = in_condition
+            conditions_dict['in_' + self.__db_column_name] = in_condition
         return conditions_dict
 
     def __eq__(self, other):
